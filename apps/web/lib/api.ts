@@ -53,8 +53,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || res.statusText);
+    const text = await res.text();
+    let message = text || res.statusText;
+    try {
+      const data = JSON.parse(text) as { detail?: unknown };
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      }
+    } catch {
+      // Keep the raw response text when the body is not JSON.
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -100,7 +109,19 @@ export async function uploadDataset(file: File): Promise<DatasetProfile> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API_BASE}/datasets/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text || res.statusText;
+    try {
+      const data = JSON.parse(text) as { detail?: unknown };
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      }
+    } catch {
+      // Keep the raw response text when the body is not JSON.
+    }
+    throw new Error(message);
+  }
   return res.json();
 }
 

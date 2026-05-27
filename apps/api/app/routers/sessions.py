@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.kernel.manager import kernel_manager
+from app.kernel.manager import CapacityError, kernel_manager
 from app.schemas import SessionCreateResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -27,4 +27,6 @@ def reset_session(session_id: str) -> dict:
         kernel_manager.dispatch(session_id, "reset")
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     return {"ok": True}

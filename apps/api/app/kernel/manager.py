@@ -13,10 +13,14 @@ from app.config import settings
 from app.kernel.protocol import decode_message, encode_message
 
 
+class CapacityError(RuntimeError):
+    pass
+
+
 @dataclass
 class KernelSession:
     session_id: str
-    process: subprocess.Popen
+    process: subprocess.Popen | None = None
     created_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
     allowed_paths: list[str] = field(default_factory=list)
@@ -30,6 +34,7 @@ class KernelManager:
     def __init__(self) -> None:
         self._sessions: dict[str, KernelSession] = {}
         self._lock = threading.Lock()
+        self._execution_slots = threading.BoundedSemaphore(settings.max_concurrent_executions)
         self._cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self._cleanup_thread.start()
 
@@ -71,7 +76,24 @@ class KernelManager:
             raise RuntimeError("워커 준비 응답 오류")
         return proc
 
+    def _active_worker_count_locked(self) -> int:
+        return sum(1 for session in self._sessions.values() if session.process is not None)
+
+    def _ensure_worker(self, session: KernelSession) -> subprocess.Popen:
+        if session.process is not None and session.process.poll() is None:
+            return session.process
+
+        with self._lock:
+            if self._active_worker_count_locked() >= settings.max_active_workers:
+                raise CapacityError("현재 사용자가 많아 Python 실행 환경을 새로 만들 수 없습니다. 잠시 후 다시 시도해 주세요.")
+
+        session.process = self._spawn_worker(session.allowed_paths)
+        return session.process
+
     def _restart_worker(self, session: KernelSession) -> None:
+        if session.process is None:
+            session.process = self._spawn_worker(session.allowed_paths)
+            return
         try:
             if session.process.stdin:
                 session.process.stdin.write(encode_message({"op": "shutdown"}))
@@ -94,14 +116,13 @@ class KernelManager:
             "uploads/",
         ]
 
-        proc = self._spawn_worker(allowed_paths)
-
-        session = KernelSession(session_id=sid, process=proc, allowed_paths=allowed_paths)
+        session = KernelSession(session_id=sid, allowed_paths=allowed_paths)
         with self._lock:
             self._sessions[sid] = session
         return sid
 
     def _read_response(self, session: KernelSession, timeout: float) -> dict[str, Any]:
+        assert session.process is not None
         assert session.process.stdout is not None
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -120,22 +141,32 @@ class KernelManager:
 
         with session.lock:
             session.touch()
+            process = self._ensure_worker(session)
             msg = {"op": op, **(payload or {})}
-            assert session.process.stdin is not None
-            session.process.stdin.write(encode_message(msg))
-            session.process.stdin.flush()
+            assert process.stdin is not None
+            acquired_slot = False
             try:
+                if op == "exec" and not self._execution_slots.acquire(blocking=False):
+                    raise CapacityError("현재 코드 실행 요청이 많습니다. 잠시 후 다시 실행해 주세요.")
+                acquired_slot = op == "exec"
+                process.stdin.write(encode_message(msg))
+                process.stdin.flush()
                 response = self._read_response(session, settings.exec_timeout_seconds + 2)
             except TimeoutError:
                 if op == "exec":
                     self._restart_worker(session)
                 raise
+            finally:
+                if acquired_slot:
+                    self._execution_slots.release()
             return response
 
     def destroy(self, session_id: str) -> None:
         with self._lock:
             session = self._sessions.pop(session_id, None)
         if not session:
+            return
+        if session.process is None:
             return
         try:
             if session.process.stdin:
@@ -152,6 +183,15 @@ class KernelManager:
     def active_count(self) -> int:
         with self._lock:
             return len(self._sessions)
+
+    def active_worker_count(self) -> int:
+        with self._lock:
+            return self._active_worker_count_locked()
+
+    def has_worker(self, session_id: str) -> bool:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            return bool(session and session.process is not None and session.process.poll() is None)
 
 
 kernel_manager = KernelManager()

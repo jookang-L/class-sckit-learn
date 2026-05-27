@@ -113,3 +113,4 @@ class StepValidationResult(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     active_sessions: int
+    active_workers: int = 0

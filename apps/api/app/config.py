@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     session_ttl_minutes: int = 30
     exec_timeout_seconds: int = 10
     max_upload_bytes: int = 5 * 1024 * 1024
+    max_active_workers: int = 18
+    max_concurrent_executions: int = 6
 
     base_dir: Path = Path(__file__).resolve().parent.parent
     data_dir: Path = base_dir / "data"

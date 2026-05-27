@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.analysis.error_translator import translate_error
-from app.kernel.manager import kernel_manager
+from app.kernel.manager import CapacityError, kernel_manager
 from app.schemas import ExecuteRequest, ExecuteResult
 
 router = APIRouter(prefix="/sessions", tags=["execute"])
@@ -13,6 +13,8 @@ def execute_code(session_id: str, body: ExecuteRequest) -> ExecuteResult:
         response = kernel_manager.dispatch(session_id, "exec", {"src": body.code})
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.") from exc
+    except CapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except TimeoutError as exc:
         return ExecuteResult(
             ok=False,

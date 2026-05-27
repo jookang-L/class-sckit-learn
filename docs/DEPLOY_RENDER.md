@@ -29,6 +29,8 @@ https://render.com 가입 (GitHub 연동 권장)
 | `SESSION_TTL_MINUTES` | `30` |
 | `EXEC_TIMEOUT_SECONDS` | `5` |
 | `MAX_UPLOAD_BYTES` | `5242880` |
+| `MAX_ACTIVE_WORKERS` | `18` |
+| `MAX_CONCURRENT_EXECUTIONS` | `6` |
 
 ## 4. Health Check
 

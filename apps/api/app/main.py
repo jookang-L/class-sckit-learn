@@ -39,4 +39,8 @@ def root() -> dict[str, str]:
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", active_sessions=kernel_manager.active_count())
+    return HealthResponse(
+        status="ok",
+        active_sessions=kernel_manager.active_count(),
+        active_workers=kernel_manager.active_worker_count(),
+    )
