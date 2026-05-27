@@ -1,0 +1,11 @@
+{
+  "name": "sckit-learn",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --prefix apps/web",
+    "dev:api": "node scripts/run-api.mjs",
+    "build": "npm run build --prefix apps/web",
+    "lint": "npm run lint --prefix apps/web"
+  }
+}
