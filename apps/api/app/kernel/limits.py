@@ -18,8 +18,3 @@ def apply_resource_limits() -> None:
     resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
     # Max file size 5MB
     resource.setrlimit(resource.RLIMIT_FSIZE, (5 * 1024 * 1024, 5 * 1024 * 1024))
-    # Disable fork bombs
-    try:
-        resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
-    except (ValueError, OSError):
-        pass
