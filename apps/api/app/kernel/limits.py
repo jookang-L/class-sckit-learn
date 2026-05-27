@@ -14,7 +14,5 @@ def apply_resource_limits() -> None:
 
     # CPU time limit (seconds)
     resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
-    # Address space ~512MB
-    resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
     # Max file size 5MB
     resource.setrlimit(resource.RLIMIT_FSIZE, (5 * 1024 * 1024, 5 * 1024 * 1024))
